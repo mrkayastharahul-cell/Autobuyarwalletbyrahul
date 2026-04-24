@@ -1,54 +1,39 @@
 (function () {
-  if (window.__AR_FINAL__) return;
-  window.__AR_FINAL__ = true;
+  if (window.__AR_FINAL_V2__) return;
+  window.__AR_FINAL_V2__ = true;
 
-  let targetAmount = "";
   let running = false;
+  let targetAmount = "";
 
   const paymentSound = new Audio("https://actions.google.com/sounds/v1/cartoon/clang.ogg");
   const successSound = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
 
-  function updateStatus(msg, color = "#fff") {
+  function updateStatus(msg) {
     status.innerText = msg;
-    status.style.color = color;
   }
 
-  function getAllItems() {
-    return [...document.querySelectorAll("div, li, section")];
+  function getBuyButtons() {
+    return [...document.querySelectorAll("button")]
+      .filter(b => b.innerText.toLowerCase().includes("buy"));
   }
 
-  function findMatches() {
-    return getAllItems().filter(el => el.innerText?.trim() === targetAmount);
+  function rowContainsAmount(btn) {
+    let row = btn.closest("div");
+    if (!row) return false;
+
+    return row.innerText.includes(targetAmount);
   }
 
-  function filterView(matches) {
-    let all = getAllItems();
-    all.forEach(el => {
-      el.style.display = matches.includes(el) ? "" : "none";
-    });
-  }
-
-  function resetView() {
-    getAllItems().forEach(el => el.style.display = "");
-  }
-
-  function clickBuy(el) {
-    let btn = el.closest("div")?.querySelector("button");
-    if (btn) {
-      btn.click();
-      return true;
-    }
-    return false;
+  function getMatchingButtons() {
+    let buyButtons = getBuyButtons();
+    return buyButtons.filter(btn => rowContainsAmount(btn));
   }
 
   function clickDefault() {
-    let el = [...document.querySelectorAll("*")]
-      .find(e => e.innerText?.toLowerCase().includes("default"));
-    if (el) {
-      el.click();
-      return true;
-    }
-    return false;
+    let btn = [...document.querySelectorAll("button")]
+      .find(b => b.innerText.toLowerCase().includes("default"));
+
+    if (btn) btn.click();
   }
 
   function isPaymentPage() {
@@ -57,68 +42,76 @@
 
   function clickMobiKwik() {
     let el = [...document.querySelectorAll("*")]
-      .find(e => e.innerText?.toLowerCase().includes("mobikwik"));
+      .find(e => e.innerText.toLowerCase().includes("mobikwik"));
+
     if (el) {
       el.click();
+      successSound.play();
       return true;
     }
     return false;
   }
 
+  function highlight(el) {
+    el.style.outline = "2px solid red";
+  }
+
   async function process() {
     if (!running) return;
 
-    updateStatus("🔍 Scanning...", "#00d4ff");
+    updateStatus("Scanning...");
 
-    let matches = findMatches();
+    // STEP 1: Find matching Buy buttons
+    let matches = getMatchingButtons();
 
     if (matches.length === 0) {
-      updateStatus("❌ No match → Default", "#ff4d4d");
+      updateStatus("No match → Default");
 
-      resetView();
       clickDefault();
 
       setTimeout(process, 1000);
       return;
     }
 
-    updateStatus(`💰 Found ${matches.length}`, "#00ff88");
+    updateStatus(`Found ${matches.length}`);
 
-    filterView(matches);
+    // STEP 2: Limit to 3
+    matches = matches.slice(0, 3);
 
-    let count = 0;
+    // STEP 3: Click each
+    for (let btn of matches) {
+      btn.scrollIntoView({ behavior: "smooth", block: "center" });
+      highlight(btn);
 
-    for (let el of matches) {
-      if (count >= 3) break;
+      btn.focus();
+      btn.click();
 
-      let clicked = clickBuy(el);
-      if (clicked) {
-        count++;
-        updateStatus(`🖱️ Click ${count}`, "#00ff88");
-        await new Promise(r => setTimeout(r, 500));
-      }
+      await new Promise(r => setTimeout(r, 500));
     }
 
+    // STEP 4: Wait for response
     await new Promise(r => setTimeout(r, 2000));
 
+    // STEP 5: Check payment page
     if (isPaymentPage()) {
-      updateStatus("✅ Payment detected", "#00ff88");
+      updateStatus("Payment detected");
+
       paymentSound.play();
 
       setTimeout(() => {
         if (clickMobiKwik()) {
-          successSound.play();
-          updateStatus("💳 MobiKwik clicked", "#00ff88");
+          updateStatus("MobiKwik clicked");
         } else {
-          updateStatus("⚠️ MobiKwik not found", "#ffaa00");
+          updateStatus("MobiKwik not found");
         }
-      }, 800);
+      }, 1000);
 
       running = false;
       startBtn.innerText = "START";
       return;
     }
 
+    // STEP 6: Retry loop
     setTimeout(process, 1000);
   }
 
@@ -128,26 +121,24 @@
     position:fixed;
     top:20px;
     right:20px;
-    width:240px;
+    width:220px;
     background:#111;
     color:#fff;
-    padding:15px;
-    border-radius:12px;
+    padding:10px;
     z-index:99999;
     font-family:sans-serif;
   `;
 
   let input = document.createElement("input");
   input.placeholder = "Enter Amount";
-  input.style = "width:100%;margin-bottom:10px;padding:6px;border-radius:6px;border:none;";
+  input.style = "width:100%;margin-bottom:10px;padding:5px;";
 
   let startBtn = document.createElement("button");
   startBtn.innerText = "START";
-  startBtn.style = "width:100%;padding:8px;background:#00d4ff;border:none;border-radius:6px;font-weight:bold;";
+  startBtn.style = "width:100%;padding:6px;";
 
   let status = document.createElement("div");
   status.innerText = "Idle";
-  status.style = "margin-top:10px;text-align:center;font-size:13px;";
 
   startBtn.onclick = () => {
     if (!running) {
@@ -156,14 +147,11 @@
 
       running = true;
       startBtn.innerText = "STOP";
-      updateStatus("🚀 Running...", "#00ff88");
-
       process();
     } else {
       running = false;
       startBtn.innerText = "START";
-      updateStatus("⏹ Stopped", "#ffaa00");
-      resetView();
+      status.innerText = "Stopped";
     }
   };
 
