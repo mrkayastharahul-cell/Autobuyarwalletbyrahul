@@ -3,7 +3,7 @@
   window.__FINAL__ = true;
 
   let running = false;
-  let audioUnlocked = false;
+  let audioCtx;
 
   // ===== UI =====
   const box = document.createElement("div");
@@ -23,7 +23,7 @@
   `;
 
   box.innerHTML = `
-    <div id="dragHandle" style="display:flex;justify-content:space-between;margin-bottom:8px;cursor:move;">
+    <div id="dragHandle" style="display:flex;justify-content:space-between;margin-bottom:8px;">
       <span style="font-weight:600;font-size:13px;">AR Wallet</span>
       <span id="light" style="width:10px;height:10px;border-radius:50%;background:red;"></span>
     </div>
@@ -60,24 +60,50 @@
   };
   document.onmouseup = () => isDragging = false;
 
-  // ===== SOUND =====
+  // ===== SOUND (WORKING) =====
   function unlockAudio() {
-    if (!audioUnlocked) {
-      const a = new Audio();
-      a.play().then(() => {
-        audioUnlocked = true;
-      }).catch(()=>{});
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume();
     }
   }
 
   function playChime() {
-    if (!audioUnlocked) return;
-    new Audio("https://actions.google.com/sounds/v1/cartoon/clang.ogg").play().catch(()=>{});
+    if (!audioCtx) return;
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.frequency.value = 800;
+    osc.type = "sine";
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.6);
+
+    setTimeout(() => osc.stop(), 600);
   }
 
   function playPop() {
-    if (!audioUnlocked) return;
-    new Audio("https://actions.google.com/sounds/v1/notifications/message_pop.ogg").play().catch(()=>{});
+    if (!audioCtx) return;
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.frequency.value = 1200;
+    osc.type = "square";
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
+
+    setTimeout(() => osc.stop(), 300);
   }
 
   // ===== HELPERS =====
@@ -115,7 +141,7 @@
            document.body.innerText.includes("Select Payment Method");
   }
 
-  // ===== EXACT CLICK =====
+  // ===== EXACT MOBIKWIK CLICK =====
   function clickMobiKwikExact() {
     const el = document.querySelector(".bgmobikwik");
 
@@ -201,7 +227,7 @@
     const val = amountInput.value.trim();
     if (!val) return;
 
-    unlockAudio(); // 🔥 fixes sound
+    unlockAudio(); // 🔥 critical fix
 
     running = true;
     status.innerText = "Running";
