@@ -3,6 +3,7 @@
   window.__FINAL__ = true;
 
   let running = false;
+  let audioUnlocked = false;
 
   // ===== UI =====
   const box = document.createElement("div");
@@ -60,11 +61,22 @@
   document.onmouseup = () => isDragging = false;
 
   // ===== SOUND =====
+  function unlockAudio() {
+    if (!audioUnlocked) {
+      const a = new Audio();
+      a.play().then(() => {
+        audioUnlocked = true;
+      }).catch(()=>{});
+    }
+  }
+
   function playChime() {
+    if (!audioUnlocked) return;
     new Audio("https://actions.google.com/sounds/v1/cartoon/clang.ogg").play().catch(()=>{});
   }
 
   function playPop() {
+    if (!audioUnlocked) return;
     new Audio("https://actions.google.com/sounds/v1/notifications/message_pop.ogg").play().catch(()=>{});
   }
 
@@ -103,32 +115,16 @@
            document.body.innerText.includes("Select Payment Method");
   }
 
-  // ===== CLICK @mbkns =====
-  function clickMbkns() {
-    const els = [...document.querySelectorAll("*")];
+  // ===== EXACT CLICK =====
+  function clickMobiKwikExact() {
+    const el = document.querySelector(".bgmobikwik");
 
-    for (let el of els) {
-      if (el.innerText?.includes("@mbkns")) {
-        let parent = el;
-
-        while (parent && parent !== document.body) {
-          const style = window.getComputedStyle(parent);
-
-          if (
-            parent.onclick ||
-            parent.tagName === "BUTTON" ||
-            parent.getAttribute("role") === "button" ||
-            style.cursor === "pointer"
-          ) {
-            parent.click();
-            playPop();
-            return true;
-          }
-
-          parent = parent.parentElement;
-        }
-      }
+    if (el) {
+      el.click();
+      playPop();
+      return true;
     }
+
     return false;
   }
 
@@ -151,9 +147,9 @@
         if (isPaymentPage()) {
           setTimeout(() => {
             playChime();
-            clickMbkns();
+            clickMobiKwikExact();
             status.innerText = "Done";
-          }, 1000);
+          }, 1200);
 
           running = false;
           light.style.background = "red";
@@ -171,8 +167,8 @@
       if (isPaymentPage()) {
         setTimeout(() => {
           playChime();
-          clickMbkns();
-        }, 1000);
+          clickMobiKwikExact();
+        }, 1200);
 
         running = false;
         status.innerText = "Done";
@@ -204,6 +200,8 @@
   document.getElementById("start").onclick = () => {
     const val = amountInput.value.trim();
     if (!val) return;
+
+    unlockAudio(); // 🔥 fixes sound
 
     running = true;
     status.innerText = "Running";
