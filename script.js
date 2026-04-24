@@ -25,7 +25,7 @@
       <span id="light" style="width:10px;height:10px;border-radius:50%;background:red;"></span>
     </div>
 
-    <div style="font-size:13px;margin:6px 0;">Target: ₹1000</div>
+    <div style="margin:6px 0;">Target: ₹1000</div>
 
     <button id="start">Start</button>
     <button id="stop">Stop</button>
@@ -51,10 +51,7 @@
     light.style.background = "red";
   };
 
-  function beep() {
-    new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
-  }
-
+  // ===== NEW TARGET FINDER (NO HARD DEPENDENCY) =====
   function findTargets() {
     return Array.from(document.querySelectorAll("*"))
       .filter(el => {
@@ -63,77 +60,80 @@
       });
   }
 
-  function findBuyButton(el) {
-    let parent = el.closest("div");
+  function highlight(el) {
+    el.style.outline = "2px solid red";
+  }
 
-    while (parent && parent !== document.body) {
-      let btn = [...parent.querySelectorAll("button, span, div")]
-        .find(b => b.innerText.toLowerCase().includes("buy"));
+  function findBuyText(startEl) {
+    let current = startEl;
+
+    while (current && current !== document.body) {
+      let btn = [...current.querySelectorAll("button, span, div")]
+        .find(el => el.innerText?.toLowerCase().includes("buy"));
 
       if (btn) return btn;
 
-      parent = parent.parentElement;
+      current = current.parentElement;
     }
 
     return null;
   }
 
-  function clickDefault() {
-    let btn = [...document.querySelectorAll("*")]
-      .find(e => e.innerText.toLowerCase().includes("default"));
-
-    if (btn) btn.click();
-  }
-
   function isPaymentPage() {
-    return document.body.innerText.includes("Select Method Payment") ||
-           document.body.innerText.includes("Select Payment Method");
+    return document.body.innerText.includes("Select Payment Method") ||
+           document.body.innerText.includes("Select Method Payment");
   }
 
-  function clickMobiKwik() {
-    let el = [...document.querySelectorAll("*")]
-      .find(e => e.innerText.toLowerCase().includes("mobikwik"));
+  async function clickTargets(targets) {
+    if (targets.length === 0) return false;
 
-    if (el) el.click();
+    let count = 0;
+
+    for (let t of targets) {
+      if (count >= 3) break;
+
+      highlight(t);
+
+      let buyText = findBuyText(t);
+
+      if (buyText) {
+        buyText.click();
+        count++;
+
+        await sleep(500);
+
+        if (isPaymentPage()) {
+          running = false;
+          status.innerText = "Stopped (Payment Page)";
+          light.style.background = "red";
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   async function loop() {
     while (running) {
 
       if (isPaymentPage()) {
-        beep();
-        clickMobiKwik();
         running = false;
-        status.innerText = "Done";
+        status.innerText = "Stopped (Payment Page)";
+        light.style.background = "red";
         return;
       }
 
+      await sleep(500);
+
       let targets = findTargets();
 
-      if (targets.length === 0) {
-        status.innerText = "No match → Default";
-        clickDefault();
-        await sleep(1000);
-        continue;
+      if (targets.length > 0) {
+        let success = await clickTargets(targets);
+        if (success) return;
       }
 
-      status.innerText = "Match found";
-
-      let count = 0;
-
-      for (let t of targets) {
-        if (count >= 3) break;
-
-        let btn = findBuyButton(t);
-
-        if (btn) {
-          btn.click();
-          count++;
-          await sleep(600);
-        }
-      }
-
-      await sleep(2000);
+      await sleep(1000);
     }
   }
 
