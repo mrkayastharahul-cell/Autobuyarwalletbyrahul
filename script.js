@@ -9,8 +9,8 @@
   const box = document.createElement("div");
   box.style = `
     position:fixed;
-    top:200px;
-    left:200px;
+    bottom:20px;
+    right:20px;
     width:220px;
     background:#f3f4f6;
     color:#111;
@@ -45,19 +45,31 @@
   const light = document.getElementById("light");
   const amountInput = document.getElementById("amount");
 
-  // ===== DRAG =====
+  // ===== DRAG FIX =====
   let isDragging = false, offsetX, offsetY;
-  document.getElementById("dragHandle").onmousedown = (e) => {
+  const dragHandle = document.getElementById("dragHandle");
+
+  dragHandle.onmousedown = (e) => {
     isDragging = true;
+
+    // convert bottom-right to top-left
+    const rect = box.getBoundingClientRect();
+    box.style.left = rect.left + "px";
+    box.style.top = rect.top + "px";
+    box.style.right = "auto";
+    box.style.bottom = "auto";
+
     offsetX = e.clientX - box.offsetLeft;
     offsetY = e.clientY - box.offsetTop;
   };
+
   document.onmousemove = (e) => {
     if (isDragging) {
       box.style.left = (e.clientX - offsetX) + "px";
       box.style.top = (e.clientY - offsetY) + "px";
     }
   };
+
   document.onmouseup = () => isDragging = false;
 
   // ===== SOUND (WORKING) =====
@@ -72,37 +84,29 @@
 
   function playChime() {
     if (!audioCtx) return;
-
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
 
     osc.frequency.value = 800;
-    osc.type = "sine";
-
     osc.connect(gain);
     gain.connect(audioCtx.destination);
 
     osc.start();
     gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.6);
-
     setTimeout(() => osc.stop(), 600);
   }
 
   function playPop() {
     if (!audioCtx) return;
-
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
 
     osc.frequency.value = 1200;
-    osc.type = "square";
-
     osc.connect(gain);
     gain.connect(audioCtx.destination);
 
     osc.start();
     gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
-
     setTimeout(() => osc.stop(), 300);
   }
 
@@ -128,9 +132,7 @@
     let parent = el;
     while (parent && parent !== document.body) {
       let btn = parent.querySelector(".van-button__text");
-      if (btn && btn.innerText.toLowerCase().includes("buy")) {
-        return btn;
-      }
+      if (btn && btn.innerText.toLowerCase().includes("buy")) return btn;
       parent = parent.parentElement;
     }
     return null;
@@ -141,16 +143,13 @@
            document.body.innerText.includes("Select Payment Method");
   }
 
-  // ===== EXACT MOBIKWIK CLICK =====
   function clickMobiKwikExact() {
     const el = document.querySelector(".bgmobikwik");
-
     if (el) {
       el.click();
       playPop();
       return true;
     }
-
     return false;
   }
 
@@ -227,7 +226,7 @@
     const val = amountInput.value.trim();
     if (!val) return;
 
-    unlockAudio(); // 🔥 critical fix
+    unlockAudio();
 
     running = true;
     status.innerText = "Running";
