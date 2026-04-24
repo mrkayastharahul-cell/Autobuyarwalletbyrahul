@@ -60,9 +60,12 @@
   document.onmouseup = () => isDragging = false;
 
   // ===== SOUND =====
-  function playSound() {
-    const a = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
-    a.play().catch(() => {});
+  function playChime() {
+    new Audio("https://actions.google.com/sounds/v1/cartoon/clang.ogg").play().catch(()=>{});
+  }
+
+  function playPop() {
+    new Audio("https://actions.google.com/sounds/v1/notifications/message_pop.ogg").play().catch(()=>{});
   }
 
   // ===== HELPERS =====
@@ -87,7 +90,7 @@
     let parent = el;
     while (parent && parent !== document.body) {
       let btn = parent.querySelector(".van-button__text");
-      if (btn && btn.innerText.trim().toLowerCase().includes("buy")) {
+      if (btn && btn.innerText.toLowerCase().includes("buy")) {
         return btn;
       }
       parent = parent.parentElement;
@@ -100,11 +103,12 @@
            document.body.innerText.includes("Select Payment Method");
   }
 
-  function clickMobiKwik() {
+  // ===== CLICK @mbkns =====
+  function clickMbkns() {
     const els = [...document.querySelectorAll("*")];
 
     for (let el of els) {
-      if (el.innerText?.toLowerCase().includes("mobikwik")) {
+      if (el.innerText?.includes("@mbkns")) {
         let parent = el;
 
         while (parent && parent !== document.body) {
@@ -117,6 +121,7 @@
             style.cursor === "pointer"
           ) {
             parent.click();
+            playPop();
             return true;
           }
 
@@ -124,10 +129,10 @@
         }
       }
     }
-
     return false;
   }
 
+  // ===== MULTI CLICK =====
   async function clickTargets(targets) {
     let count = 0;
 
@@ -145,8 +150,8 @@
 
         if (isPaymentPage()) {
           setTimeout(() => {
-            playSound();
-            clickMobiKwik();
+            playChime();
+            clickMbkns();
             status.innerText = "Done";
           }, 1000);
 
@@ -156,17 +161,17 @@
         }
       }
     }
-
     return false;
   }
 
+  // ===== LOOP =====
   async function loop() {
     while (running) {
 
       if (isPaymentPage()) {
         setTimeout(() => {
-          playSound();
-          clickMobiKwik();
+          playChime();
+          clickMbkns();
         }, 1000);
 
         running = false;
