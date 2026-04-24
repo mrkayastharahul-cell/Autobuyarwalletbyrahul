@@ -1,163 +1,144 @@
 (function () {
-  if (window.__AR_FINAL_V2__) return;
-  window.__AR_FINAL_V2__ = true;
+  if (window.__FILTER__) return;
+  window.__FILTER__ = true;
 
   let running = false;
-  let targetAmount = "";
 
-  const paymentSound = new Audio("https://actions.google.com/sounds/v1/cartoon/clang.ogg");
-  const successSound = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+  // ===== UI =====
+  const box = document.createElement("div");
+  box.style = `
+    position:fixed;
+    bottom:20px;
+    right:20px;
+    width:220px;
+    background:#111;
+    color:#fff;
+    padding:12px;
+    border-radius:12px;
+    z-index:999999;
+    font-family:sans-serif;
+  `;
 
-  function updateStatus(msg) {
-    status.innerText = msg;
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;">
+      <span>Auto Buy</span>
+      <span id="light" style="width:10px;height:10px;border-radius:50%;background:red;"></span>
+    </div>
+
+    <div style="font-size:13px;margin:6px 0;">Target: ₹1000</div>
+
+    <button id="start">Start</button>
+    <button id="stop">Stop</button>
+
+    <div id="status">Idle</div>
+  `;
+
+  document.body.appendChild(box);
+
+  const status = document.getElementById("status");
+  const light = document.getElementById("light");
+
+  document.getElementById("start").onclick = () => {
+    running = true;
+    status.innerText = "Running";
+    light.style.background = "lime";
+    loop();
+  };
+
+  document.getElementById("stop").onclick = () => {
+    running = false;
+    status.innerText = "Stopped";
+    light.style.background = "red";
+  };
+
+  function beep() {
+    new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
   }
 
-  function getBuyButtons() {
-    return [...document.querySelectorAll("button")]
-      .filter(b => b.innerText.toLowerCase().includes("buy"));
+  function findTargets() {
+    return Array.from(document.querySelectorAll("*"))
+      .filter(el => {
+        let text = el.innerText?.replace(/\s+/g, "");
+        return text === "₹1000" || text === "1000";
+      });
   }
 
-  function rowContainsAmount(btn) {
-    let row = btn.closest("div");
-    if (!row) return false;
+  function findBuyButton(el) {
+    let parent = el.closest("div");
 
-    return row.innerText.includes(targetAmount);
-  }
+    while (parent && parent !== document.body) {
+      let btn = [...parent.querySelectorAll("button, span, div")]
+        .find(b => b.innerText.toLowerCase().includes("buy"));
 
-  function getMatchingButtons() {
-    let buyButtons = getBuyButtons();
-    return buyButtons.filter(btn => rowContainsAmount(btn));
+      if (btn) return btn;
+
+      parent = parent.parentElement;
+    }
+
+    return null;
   }
 
   function clickDefault() {
-    let btn = [...document.querySelectorAll("button")]
-      .find(b => b.innerText.toLowerCase().includes("default"));
+    let btn = [...document.querySelectorAll("*")]
+      .find(e => e.innerText.toLowerCase().includes("default"));
 
     if (btn) btn.click();
   }
 
   function isPaymentPage() {
-    return document.body.innerText.includes("Select Method Payment");
+    return document.body.innerText.includes("Select Method Payment") ||
+           document.body.innerText.includes("Select Payment Method");
   }
 
   function clickMobiKwik() {
     let el = [...document.querySelectorAll("*")]
       .find(e => e.innerText.toLowerCase().includes("mobikwik"));
 
-    if (el) {
-      el.click();
-      successSound.play();
-      return true;
-    }
-    return false;
+    if (el) el.click();
   }
 
-  function highlight(el) {
-    el.style.outline = "2px solid red";
-  }
+  async function loop() {
+    while (running) {
 
-  async function process() {
-    if (!running) return;
+      if (isPaymentPage()) {
+        beep();
+        clickMobiKwik();
+        running = false;
+        status.innerText = "Done";
+        return;
+      }
 
-    updateStatus("Scanning...");
+      let targets = findTargets();
 
-    // STEP 1: Find matching Buy buttons
-    let matches = getMatchingButtons();
+      if (targets.length === 0) {
+        status.innerText = "No match → Default";
+        clickDefault();
+        await sleep(1000);
+        continue;
+      }
 
-    if (matches.length === 0) {
-      updateStatus("No match → Default");
+      status.innerText = "Match found";
 
-      clickDefault();
+      let count = 0;
 
-      setTimeout(process, 1000);
-      return;
-    }
+      for (let t of targets) {
+        if (count >= 3) break;
 
-    updateStatus(`Found ${matches.length}`);
+        let btn = findBuyButton(t);
 
-    // STEP 2: Limit to 3
-    matches = matches.slice(0, 3);
-
-    // STEP 3: Click each
-    for (let btn of matches) {
-      btn.scrollIntoView({ behavior: "smooth", block: "center" });
-      highlight(btn);
-
-      btn.focus();
-      btn.click();
-
-      await new Promise(r => setTimeout(r, 500));
-    }
-
-    // STEP 4: Wait for response
-    await new Promise(r => setTimeout(r, 2000));
-
-    // STEP 5: Check payment page
-    if (isPaymentPage()) {
-      updateStatus("Payment detected");
-
-      paymentSound.play();
-
-      setTimeout(() => {
-        if (clickMobiKwik()) {
-          updateStatus("MobiKwik clicked");
-        } else {
-          updateStatus("MobiKwik not found");
+        if (btn) {
+          btn.click();
+          count++;
+          await sleep(600);
         }
-      }, 1000);
+      }
 
-      running = false;
-      startBtn.innerText = "START";
-      return;
+      await sleep(2000);
     }
-
-    // STEP 6: Retry loop
-    setTimeout(process, 1000);
   }
 
-  // UI
-  let panel = document.createElement("div");
-  panel.style = `
-    position:fixed;
-    top:20px;
-    right:20px;
-    width:220px;
-    background:#111;
-    color:#fff;
-    padding:10px;
-    z-index:99999;
-    font-family:sans-serif;
-  `;
+  function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  }
 
-  let input = document.createElement("input");
-  input.placeholder = "Enter Amount";
-  input.style = "width:100%;margin-bottom:10px;padding:5px;";
-
-  let startBtn = document.createElement("button");
-  startBtn.innerText = "START";
-  startBtn.style = "width:100%;padding:6px;";
-
-  let status = document.createElement("div");
-  status.innerText = "Idle";
-
-  startBtn.onclick = () => {
-    if (!running) {
-      targetAmount = input.value.trim();
-      if (!targetAmount) return alert("Enter amount");
-
-      running = true;
-      startBtn.innerText = "STOP";
-      process();
-    } else {
-      running = false;
-      startBtn.innerText = "START";
-      status.innerText = "Stopped";
-    }
-  };
-
-  panel.appendChild(input);
-  panel.appendChild(startBtn);
-  panel.appendChild(status);
-
-  document.body.appendChild(panel);
 })();
