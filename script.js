@@ -45,14 +45,13 @@
   const light = document.getElementById("light");
   const amountInput = document.getElementById("amount");
 
-  // ===== DRAG FIX =====
+  // ===== DRAG =====
   let isDragging = false, offsetX, offsetY;
   const dragHandle = document.getElementById("dragHandle");
 
   dragHandle.onmousedown = (e) => {
     isDragging = true;
 
-    // convert bottom-right to top-left
     const rect = box.getBoundingClientRect();
     box.style.left = rect.left + "px";
     box.style.top = rect.top + "px";
@@ -72,7 +71,7 @@
 
   document.onmouseup = () => isDragging = false;
 
-  // ===== SOUND (WORKING) =====
+  // ===== SOUND =====
   function unlockAudio() {
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -86,11 +85,9 @@
     if (!audioCtx) return;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-
     osc.frequency.value = 800;
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-
     osc.start();
     gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.6);
     setTimeout(() => osc.stop(), 600);
@@ -100,11 +97,9 @@
     if (!audioCtx) return;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-
     osc.frequency.value = 1200;
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-
     osc.start();
     gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
     setTimeout(() => osc.stop(), 300);
@@ -117,10 +112,12 @@
     });
   }
 
+  // 🔥 STRICT MATCH (FINAL FIX)
   function findTargets(val) {
     return [...document.querySelectorAll(".ml10")].filter(el => {
-      const text = el.innerText.replace(/\s+/g, '');
-      return text.includes(val);
+      let cleaned = el.innerText.replace(/[^0-9]/g, "");
+      cleaned = cleaned.replace(/^0+/, "");
+      return cleaned === val;
     });
   }
 
