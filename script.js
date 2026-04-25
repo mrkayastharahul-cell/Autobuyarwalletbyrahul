@@ -51,13 +51,11 @@
 
   dragHandle.onmousedown = (e) => {
     isDragging = true;
-
     const rect = box.getBoundingClientRect();
     box.style.left = rect.left + "px";
     box.style.top = rect.top + "px";
     box.style.right = "auto";
     box.style.bottom = "auto";
-
     offsetX = e.clientX - box.offsetLeft;
     offsetY = e.clientY - box.offsetTop;
   };
@@ -76,33 +74,57 @@
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
-    if (audioCtx.state === "suspended") {
-      audioCtx.resume();
-    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
   }
 
   function playChime() {
     if (!audioCtx) return;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.frequency.value = 800;
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
-    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.6);
-    setTimeout(() => osc.stop(), 600);
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.frequency.value = 800;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.6);
+    setTimeout(() => o.stop(), 600);
   }
 
   function playPop() {
     if (!audioCtx) return;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.frequency.value = 1200;
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
-    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
-    setTimeout(() => osc.stop(), 300);
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.frequency.value = 1200;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
+    setTimeout(() => o.stop(), 300);
+  }
+
+  // ===== FILTER SYSTEM =====
+  function filterResults(val) {
+    let found = false;
+
+    document.querySelectorAll(".ml10").forEach(el => {
+      let cleaned = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
+      const row = el.closest("div");
+
+      if (!row) return;
+
+      if (cleaned === val) {
+        row.style.display = "";
+        found = true;
+      } else {
+        row.style.display = "none";
+      }
+    });
+
+    return found;
+  }
+
+  function resetResults() {
+    document.querySelectorAll(".ml10").forEach(el => {
+      const row = el.closest("div");
+      if (row) row.style.display = "";
+    });
   }
 
   // ===== HELPERS =====
@@ -112,17 +134,11 @@
     });
   }
 
-  // 🔥 STRICT MATCH (FINAL FIX)
   function findTargets(val) {
     return [...document.querySelectorAll(".ml10")].filter(el => {
-      let cleaned = el.innerText.replace(/[^0-9]/g, "");
-      cleaned = cleaned.replace(/^0+/, "");
+      let cleaned = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
       return cleaned === val;
     });
-  }
-
-  function highlight(el) {
-    el.style.outline = "2px solid red";
   }
 
   function findBuy(el) {
@@ -156,8 +172,6 @@
 
     for (let t of targets) {
       if (count >= 3) break;
-
-      highlight(t);
 
       let btn = findBuy(t);
       if (btn) {
@@ -198,11 +212,19 @@
         return;
       }
 
-      clickDefault();
+      const val = amountInput.value.trim();
+
+      let found = filterResults(val);
+
+      if (!found) {
+        resetResults();
+        clickDefault();
+        await sleep(700);
+        continue;
+      }
 
       await sleep(300);
 
-      const val = amountInput.value.trim();
       let targets = findTargets(val);
 
       if (targets.length > 0) {
@@ -236,6 +258,7 @@
     running = false;
     status.innerText = "Stopped";
     light.style.background = "red";
+    resetResults(); // restore UI
   };
 
 })();
