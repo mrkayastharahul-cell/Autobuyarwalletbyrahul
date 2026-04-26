@@ -5,7 +5,6 @@
   window.__AR_FINAL__ = true;
 
   let running = false;
-  let REMOVED_ROWS = [];
   let audioCtx;
 
   // ===== UI =====
@@ -26,18 +25,7 @@
     <input id="amount" value="1000"
       style="width:100%;padding:8px;margin-bottom:8px;border-radius:8px;border:1px solid #ccc;" />
 
-    <select id="speed" style="width:100%;margin-bottom:8px;">
-      <option value="200">⚡ Fast</option>
-      <option value="500" selected>Normal</option>
-      <option value="1000">Slow</option>
-    </select>
-
-    <div style="display:flex;justify-content:space-between;font-size:12px;">
-      <span>Matches: <b id="m">0</b></span>
-      <span>Clicks: <b id="c">0</b></span>
-    </div>
-
-    <div style="display:flex;gap:6px;margin-top:8px;">
+    <div style="display:flex;gap:6px;">
       <button id="start" style="flex:1;background:#22c55e;color:#fff;">Start</button>
       <button id="stop" style="flex:1;background:#ef4444;color:#fff;">Stop</button>
     </div>
@@ -50,11 +38,6 @@
   const status = document.getElementById("status");
   const light = document.getElementById("light");
   const amountInput = document.getElementById("amount");
-  const speedSelect = document.getElementById("speed");
-  const matchEl = document.getElementById("m");
-  const clickEl = document.getElementById("c");
-
-  let STATE = { matches: 0, clicks: 0, speed: 500 };
 
   function setStatus(type, txt) {
     status.innerText = txt;
@@ -67,20 +50,6 @@
     };
     light.style.background = colors[type] || "gray";
   }
-
-  function updateMatches(n) {
-    STATE.matches = n;
-    matchEl.innerText = n;
-  }
-
-  function addClick() {
-    STATE.clicks++;
-    clickEl.innerText = STATE.clicks;
-  }
-
-  speedSelect.onchange = () => {
-    STATE.speed = +speedSelect.value;
-  };
 
   // ===== AUDIO =====
   function unlockAudio() {
@@ -122,38 +91,57 @@
     });
   }
 
-  function restoreRemoved() {
-    REMOVED_ROWS.forEach(item => item.parent.appendChild(item.element));
-    REMOVED_ROWS = [];
+  // ===== HIGHLIGHT SYSTEM =====
+  function clearHighlights() {
+    document.querySelectorAll(".ar-highlight").forEach(el => {
+      el.classList.remove("ar-highlight");
+      el.style.outline = "";
+      el.style.background = "";
+    });
   }
 
-  function findTargets(val) {
-    return [...document.querySelectorAll(".ml10")].filter(el =>
-      el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "") === val
-    );
+  function highlightMatches(val) {
+    clearHighlights();
+
+    let matches = [];
+
+    document.querySelectorAll(".ml10").forEach(el => {
+      const num = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
+      const row = el.closest(".x-row");
+
+      if (!row) return;
+
+      if (num === val) {
+        row.classList.add("ar-highlight");
+        row.style.outline = "2px solid lime";
+        row.style.background = "#eaffea";
+        matches.push(row);
+      }
+    });
+
+    return matches;
   }
 
-  function findBuy(el) {
-    return el.closest(".x-row")?.querySelector("button.van-button");
+  function findBuy(row) {
+    return [...row.querySelectorAll("button")]
+      .find(btn => btn.innerText.trim().toLowerCase() === "buy");
+  }
+
+  function ensureVisible(el) {
+    el.scrollIntoView({ block: "center", behavior: "instant" });
   }
 
   function realClick(el) {
-    el.dispatchEvent(new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      view: window
-    }));
-  }
+    const rect = el.getBoundingClientRect();
 
-  function hardRemoveExcept(target) {
-    document.querySelectorAll(".ml10").forEach(el => {
-      const row = el.closest(".x-row");
-      if (!row) return;
-
-      if (row !== target.closest(".x-row")) {
-        REMOVED_ROWS.push({ parent: row.parentNode, element: row });
-        row.remove();
-      }
+    ["pointerdown", "mousedown", "pointerup", "mouseup", "click"].forEach(type => {
+      el.dispatchEvent(new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2
+      }));
     });
   }
 
@@ -172,37 +160,34 @@
       clickDefault();
 
       let val = amountInput.value.trim();
-      let targets = findTargets(val);
+      let matches = highlightMatches(val);
 
-      updateMatches(targets.length);
-
-      if (!targets.length) {
+      if (!matches.length) {
         setStatus("searching", "Searching");
-        await sleep(STATE.speed);
+        await sleep(400);
         continue;
       }
 
       setStatus("found", "Match Found");
 
-      for (let t of targets) {
-        let btn = findBuy(t);
+      for (let row of matches) {
+        let btn = findBuy(row);
 
         if (btn) {
+          ensureVisible(btn);
+          await sleep(100);
+
           realClick(btn);
-          addClick();
 
-          // REMOVE AFTER CLICK
-          hardRemoveExcept(t);
-
-          await sleep(STATE.speed);
+          await sleep(500);
 
           if (isPaymentPage()) {
             setStatus("success", "Payment");
 
-            await sleep(600);
+            await sleep(500);
             clickMobiKwik();
 
-            await sleep(1000);
+            await sleep(800);
             playChime();
 
             box.remove();
@@ -212,28 +197,21 @@
         }
       }
 
-      await sleep(STATE.speed);
+      await sleep(400);
     }
   }
 
   // ===== BUTTONS =====
   document.getElementById("start").onclick = () => {
     unlockAudio();
-
-    STATE.matches = 0;
-    STATE.clicks = 0;
-    updateMatches(0);
-    clickEl.innerText = 0;
-
     running = true;
     setStatus("running", "Running");
-
     loop();
   };
 
   document.getElementById("stop").onclick = () => {
     running = false;
-    restoreRemoved();
+    clearHighlights();
     setStatus("idle", "Stopped");
   };
 
