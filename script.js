@@ -51,6 +51,7 @@
   document.getElementById("dragHandle").onmousedown = (e) => {
     isDragging = true;
     const rect = box.getBoundingClientRect();
+
     box.style.left = rect.left + "px";
     box.style.top = rect.top + "px";
     box.style.right = "auto";
@@ -107,7 +108,7 @@
 
     document.querySelectorAll(".ml10").forEach(el => {
       const cleaned = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
-      const row = el.closest("div");
+      const row = el.closest(".x-row");
 
       if (!row) return;
 
@@ -124,7 +125,7 @@
 
   function resetResults() {
     document.querySelectorAll(".ml10").forEach(el => {
-      const row = el.closest("div");
+      const row = el.closest(".x-row");
       if (row) row.style.display = "";
     });
   }
@@ -137,28 +138,16 @@
     });
   }
 
-  // ===== FIND BUY =====
+  // ===== LOCKED BUY BUTTON =====
   function findBuy(el) {
-    let parent = el;
+    const row = el.closest(".x-row");
+    if (!row) return null;
 
-    while (parent && parent !== document.body) {
-      let elements = parent.querySelectorAll("button, div, span");
-
-      for (let e of elements) {
-        let text = e.innerText?.toLowerCase().trim();
-        if (text === "buy" || text?.includes("buy")) {
-          return e;
-        }
-      }
-
-      parent = parent.parentElement;
-    }
-
-    return null;
+    return row.querySelector("button.van-button");
   }
 
   function click(el) {
-    el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    el.click();
   }
 
   function isPaymentPage() {
@@ -169,13 +158,14 @@
   function clickMobiKwik() {
     const el = document.querySelector(".bgmobikwik");
     if (el) {
-      click(el);
+      el.click();
       playPop();
       return true;
     }
     return false;
   }
 
+  // ===== MULTI CLICK =====
   async function clickTargets(targets) {
     let count = 0;
 
@@ -207,6 +197,7 @@
     return false;
   }
 
+  // ===== LOOP =====
   async function loop() {
     while (running) {
 
@@ -249,7 +240,7 @@
   function clickDefault() {
     document.querySelectorAll("*").forEach(el => {
       if (el.innerText?.toLowerCase().trim() === "default") {
-        click(el);
+        el.click();
       }
     });
   }
@@ -258,6 +249,7 @@
     return new Promise(r => setTimeout(r, ms));
   }
 
+  // ===== BUTTONS =====
   document.getElementById("start").onclick = () => {
     const val = amountInput.value.trim();
     if (!val) return;
