@@ -1,46 +1,124 @@
 (function () {
   "use strict";
 
-  if (window.__AUTO_BUY_FLOW__) return;
-  window.__AUTO_BUY_FLOW__ = true;
+  if (window.__AUTO_BUY_FINAL__) return;
+  window.__AUTO_BUY_FINAL__ = true;
 
   let running = false;
-
-  // ===== CONFIG =====
-  let TARGET_AMOUNT = "1000"; // change from UI if needed
+  let TARGET_AMOUNT = "1000";
   let SPEED = 400;
 
-  // ===== UTILS =====
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-  function log(msg) {
-    console.log("[BOT]", msg);
+  // ================= UI =================
+  const box = document.createElement("div");
+  box.style = `
+    position:fixed;
+    bottom:20px;
+    right:20px;
+    width:240px;
+    background:#111;
+    color:#fff;
+    padding:12px;
+    border-radius:12px;
+    z-index:999999;
+    font-family:sans-serif;
+    box-shadow:0 8px 20px rgba(0,0,0,0.4);
+    cursor:move;
+  `;
+
+  box.innerHTML = `
+    <div id="drag" style="font-weight:bold;margin-bottom:6px;display:flex;justify-content:space-between;">
+      Auto Buy
+      <span id="light" style="width:10px;height:10px;border-radius:50%;background:red;"></span>
+    </div>
+
+    <input id="amt" value="1000" 
+      style="width:100%;padding:6px;margin-bottom:6px;border-radius:6px;border:none;" />
+
+    <select id="spd" style="width:100%;margin-bottom:6px;padding:6px;border-radius:6px;">
+      <option value="200">⚡ Fast</option>
+      <option value="400" selected>⚖️ Normal</option>
+      <option value="800">🐢 Slow</option>
+    </select>
+
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <button id="startBtn" style="flex:1;background:#22c55e;border:none;padding:6px;border-radius:6px;color:#fff;">Start</button>
+      <button id="stopBtn" style="flex:1;background:#ef4444;border:none;padding:6px;border-radius:6px;color:#fff;">Stop</button>
+    </div>
+
+    <div style="font-size:12px;display:flex;justify-content:space-between;">
+      <span>Matches: <b id="m">0</b></span>
+      <span>Clicks: <b id="c">0</b></span>
+    </div>
+
+    <div id="status" style="margin-top:6px;font-size:12px;text-align:center;">Idle</div>
+  `;
+
+  document.body.appendChild(box);
+
+  // ===== DRAG =====
+  let drag = false, x, y;
+
+  document.getElementById("drag").onmousedown = (e) => {
+    drag = true;
+    x = e.clientX - box.offsetLeft;
+    y = e.clientY - box.offsetTop;
+  };
+
+  document.onmousemove = (e) => {
+    if (drag) {
+      box.style.left = e.clientX - x + "px";
+      box.style.top = e.clientY - y + "px";
+      box.style.bottom = "auto";
+      box.style.right = "auto";
+    }
+  };
+
+  document.onmouseup = () => drag = false;
+
+  // ===== UI REFS =====
+  const status = document.getElementById("status");
+  const light = document.getElementById("light");
+  const mEl = document.getElementById("m");
+  const cEl = document.getElementById("c");
+
+  let matches = 0;
+  let clicks = 0;
+
+  function setStatus(text, color) {
+    status.innerText = text;
+    light.style.background = color;
   }
 
-  // ===== STEP 1: CLICK DEFAULT =====
+  function updateMatches(n) {
+    matches = n;
+    mEl.innerText = n;
+  }
+
+  function addClick() {
+    clicks++;
+    cEl.innerText = clicks;
+  }
+
+  // ================= CORE =================
+
   function clickDefault() {
     const el = [...document.querySelectorAll("p.txt")]
       .find(e => e.innerText.trim().toLowerCase() === "default");
-
-    if (el) {
-      el.click();
-      log("Clicked Default");
-      return true;
-    }
-    return false;
+    if (el) el.click();
   }
 
-  // ===== STEP 2: FILTER AMOUNT =====
   function filterAmount(val) {
     let count = 0;
 
     document.querySelectorAll(".ml10").forEach(el => {
-      const cleaned = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
+      const num = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
       const row = el.closest(".x-row");
 
       if (!row) return;
 
-      if (cleaned === val) {
+      if (num === val) {
         row.style.display = "";
         count++;
       } else {
@@ -48,149 +126,117 @@
       }
     });
 
+    updateMatches(count);
     return count;
   }
 
-  function resetFilter() {
-    document.querySelectorAll(".ml10").forEach(el => {
-      const row = el.closest(".x-row");
-      if (row) row.style.display = "";
-    });
-  }
-
-  // ===== STEP 3: FIND TARGET =====
   function findTargets(val) {
     return [...document.querySelectorAll(".ml10")].filter(el => {
-      const cleaned = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
-      return cleaned === val;
+      const num = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
+      return num === val;
     });
   }
 
-  // ===== STEP 4: CLICK BUY =====
-  function findBuyBtn(el) {
-    const row = el.closest(".x-row");
-    if (!row) return null;
-
-    return row.querySelector("button.van-button");
+  function findBuy(el) {
+    return el.closest(".x-row")?.querySelector("button.van-button");
   }
 
-  async function clickBuy(targets) {
-    for (let t of targets) {
-      const btn = findBuyBtn(t);
-
-      if (btn) {
-        btn.click();
-        log("Clicked Buy");
-
-        await sleep(SPEED);
-
-        if (isPaymentPage()) return true;
-      }
-    }
-    return false;
-  }
-
-  // ===== STEP 5: CHECK PAYMENT PAGE =====
   function isPaymentPage() {
     return document.body.innerText.includes("Select Method Payment");
   }
 
-  // ===== STEP 6: CLICK MOBIKWIK =====
   function clickMobiKwik() {
     const el = document.querySelector(".banklogo");
-
-    if (el) {
-      el.click();
-      log("Clicked MobiKwik");
-      return true;
-    }
-    return false;
+    if (el) el.click();
   }
 
-  // ===== STEP 7: SOUND =====
   function playPop() {
-    const a = new Audio("https://actions.google.com/sounds/v1/cartoon/pop.ogg");
-    a.play();
+    new Audio("https://actions.google.com/sounds/v1/cartoon/pop.ogg").play();
   }
 
   function playChime() {
-    const a = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
-    a.play();
+    new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
   }
 
-  // ===== STEP 8: REMOVE PAYMENT UI =====
   function removePaymentUI() {
     document.body.innerHTML = "<h2 style='text-align:center'>✅ DONE</h2>";
   }
 
-  // ===== MAIN LOOP =====
+  // ================= LOOP =================
+
   async function loop() {
     while (running) {
 
-      // STEP A: CLICK DEFAULT ALWAYS FIRST
       clickDefault();
+      await sleep(150);
 
-      await sleep(200);
-
-      // STEP B: FILTER
       let count = filterAmount(TARGET_AMOUNT);
 
       if (count === 0) {
-        log("No Match → Retry");
-        resetFilter();
+        setStatus("Searching...", "orange");
         await sleep(SPEED);
         continue;
       }
 
-      log("Match Found");
+      setStatus("Match Found", "blue");
 
-      // STEP C: CLICK BUY
       let targets = findTargets(TARGET_AMOUNT);
-      let success = await clickBuy(targets);
 
-      if (!success) {
-        log("Click failed → Retry");
-        await sleep(SPEED);
-        continue;
+      for (let t of targets) {
+        let btn = findBuy(t);
+
+        if (btn) {
+          btn.click();
+          addClick();
+
+          setStatus("Clicked Buy", "yellow");
+
+          await sleep(SPEED);
+
+          if (isPaymentPage()) {
+            setStatus("Payment Page", "green");
+
+            playPop();
+            await sleep(400);
+
+            clickMobiKwik();
+            await sleep(400);
+
+            playChime();
+            await sleep(400);
+
+            removePaymentUI();
+
+            running = false;
+            return;
+          }
+        }
       }
 
-      // STEP D: PAYMENT PAGE
-      if (isPaymentPage()) {
-        log("On Payment Page");
-
-        playPop();
-
-        await sleep(500);
-
-        clickMobiKwik();
-
-        await sleep(500);
-
-        playChime();
-
-        await sleep(500);
-
-        removePaymentUI();
-
-        running = false;
-        return;
-      }
+      await sleep(SPEED);
     }
   }
 
-  // ===== CONTROLS =====
-  window.startAutoBuy = function (amount = "1000", speed = 400) {
-    TARGET_AMOUNT = amount;
-    SPEED = speed;
-    running = true;
+  // ================= BUTTONS =================
 
-    log("Started with amount: " + amount);
+  document.getElementById("startBtn").onclick = () => {
+    TARGET_AMOUNT = document.getElementById("amt").value.trim();
+    SPEED = parseInt(document.getElementById("spd").value);
+
+    matches = 0;
+    clicks = 0;
+    updateMatches(0);
+    cEl.innerText = 0;
+
+    running = true;
+    setStatus("Running", "lime");
+
     loop();
   };
 
-  window.stopAutoBuy = function () {
+  document.getElementById("stopBtn").onclick = () => {
     running = false;
-    log("Stopped");
+    setStatus("Stopped", "red");
   };
 
 })();
