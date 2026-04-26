@@ -5,209 +5,131 @@
   window.__AUTO_BUY_FINAL__ = true;
 
   let running = false;
-  let TARGET_AMOUNT = "1000";
+  let TARGET = "1000";
   let SPEED = 400;
 
-  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   // ================= UI =================
   const box = document.createElement("div");
   box.style = `
-    position:fixed;
-    bottom:20px;
-    right:20px;
-    width:240px;
-    background:#111;
-    color:#fff;
-    padding:12px;
-    border-radius:12px;
-    z-index:999999;
-    font-family:sans-serif;
-    box-shadow:0 8px 20px rgba(0,0,0,0.4);
-    cursor:move;
+    position:fixed;bottom:20px;right:20px;width:240px;
+    background:#111;color:#fff;padding:12px;border-radius:12px;
+    z-index:999999;font-family:sans-serif;
   `;
 
   box.innerHTML = `
-    <div id="drag" style="font-weight:bold;margin-bottom:6px;display:flex;justify-content:space-between;">
-      Auto Buy
-      <span id="light" style="width:10px;height:10px;border-radius:50%;background:red;"></span>
-    </div>
+    <div id="drag" style="font-weight:bold;margin-bottom:6px;">Auto Buy</div>
 
-    <input id="amt" value="1000" 
-      style="width:100%;padding:6px;margin-bottom:6px;border-radius:6px;border:none;" />
+    <input id="amt" value="1000" style="width:100%;margin-bottom:6px;padding:6px;border-radius:6px;" />
 
-    <select id="spd" style="width:100%;margin-bottom:6px;padding:6px;border-radius:6px;">
-      <option value="200">⚡ Fast</option>
-      <option value="400" selected>⚖️ Normal</option>
-      <option value="800">🐢 Slow</option>
+    <select id="spd" style="width:100%;margin-bottom:6px;padding:6px;">
+      <option value="200">Fast</option>
+      <option value="400" selected>Normal</option>
+      <option value="800">Slow</option>
     </select>
 
-    <div style="display:flex;gap:6px;margin-bottom:6px;">
-      <button id="startBtn" style="flex:1;background:#22c55e;border:none;padding:6px;border-radius:6px;color:#fff;">Start</button>
-      <button id="stopBtn" style="flex:1;background:#ef4444;border:none;padding:6px;border-radius:6px;color:#fff;">Stop</button>
+    <button id="start" style="width:100%;margin-bottom:5px;">Start</button>
+    <button id="stop" style="width:100%;">Stop</button>
+
+    <div style="font-size:12px;margin-top:5px;">
+      Matches: <b id="m">0</b> | Clicks: <b id="c">0</b>
     </div>
 
-    <div style="font-size:12px;display:flex;justify-content:space-between;">
-      <span>Matches: <b id="m">0</b></span>
-      <span>Clicks: <b id="c">0</b></span>
-    </div>
-
-    <div id="status" style="margin-top:6px;font-size:12px;text-align:center;">Idle</div>
+    <div id="status" style="margin-top:5px;font-size:12px;">Idle</div>
   `;
 
   document.body.appendChild(box);
 
-  // ===== DRAG =====
-  let drag = false, x, y;
-
-  document.getElementById("drag").onmousedown = (e) => {
-    drag = true;
-    x = e.clientX - box.offsetLeft;
-    y = e.clientY - box.offsetTop;
-  };
-
-  document.onmousemove = (e) => {
-    if (drag) {
-      box.style.left = e.clientX - x + "px";
-      box.style.top = e.clientY - y + "px";
-      box.style.bottom = "auto";
-      box.style.right = "auto";
-    }
-  };
-
-  document.onmouseup = () => drag = false;
-
-  // ===== UI REFS =====
   const status = document.getElementById("status");
-  const light = document.getElementById("light");
   const mEl = document.getElementById("m");
   const cEl = document.getElementById("c");
 
-  let matches = 0;
-  let clicks = 0;
+  let matches = 0, clicks = 0;
 
-  function setStatus(text, color) {
-    status.innerText = text;
-    light.style.background = color;
-  }
-
-  function updateMatches(n) {
-    matches = n;
-    mEl.innerText = n;
-  }
-
-  function addClick() {
-    clicks++;
-    cEl.innerText = clicks;
-  }
+  function setStatus(t){ status.innerText = t; }
+  function setMatches(n){ matches=n; mEl.innerText=n; }
+  function addClick(){ clicks++; cEl.innerText=clicks; }
 
   // ================= CORE =================
 
-  function clickDefault() {
-    const el = [...document.querySelectorAll("p.txt")]
-      .find(e => e.innerText.trim().toLowerCase() === "default");
-    if (el) el.click();
+  function clickDefault(){
+    const el=[...document.querySelectorAll("p.txt")]
+      .find(e=>e.innerText.trim().toLowerCase()==="default");
+    if(el) el.click();
   }
 
-  function filterAmount(val) {
-    let count = 0;
+  function filter(val){
+    let count=0;
+    document.querySelectorAll(".ml10").forEach(el=>{
+      const num=el.innerText.replace(/[^0-9]/g,"").replace(/^0+/,"");
+      const row=el.closest(".x-row");
+      if(!row)return;
 
-    document.querySelectorAll(".ml10").forEach(el => {
-      const num = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
-      const row = el.closest(".x-row");
-
-      if (!row) return;
-
-      if (num === val) {
-        row.style.display = "";
-        count++;
-      } else {
-        row.style.display = "none";
-      }
+      if(num===val){ row.style.display=""; count++; }
+      else row.style.display="none";
     });
-
-    updateMatches(count);
+    setMatches(count);
     return count;
   }
 
-  function findTargets(val) {
-    return [...document.querySelectorAll(".ml10")].filter(el => {
-      const num = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
-      return num === val;
+  function targets(val){
+    return [...document.querySelectorAll(".ml10")].filter(el=>{
+      const num=el.innerText.replace(/[^0-9]/g,"").replace(/^0+/,"");
+      return num===val;
     });
   }
 
-  function findBuy(el) {
+  function buyBtn(el){
     return el.closest(".x-row")?.querySelector("button.van-button");
   }
 
-  function isPaymentPage() {
+  function paymentPage(){
     return document.body.innerText.includes("Select Method Payment");
   }
 
-  function clickMobiKwik() {
-    const el = document.querySelector(".banklogo");
-    if (el) el.click();
-  }
-
-  function playPop() {
-    new Audio("https://actions.google.com/sounds/v1/cartoon/pop.ogg").play();
-  }
-
-  function playChime() {
-    new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
-  }
-
-  function removePaymentUI() {
-    document.body.innerHTML = "<h2 style='text-align:center'>✅ DONE</h2>";
+  function mobikwik(){
+    const el=document.querySelector(".banklogo");
+    if(el) el.click();
   }
 
   // ================= LOOP =================
 
-  async function loop() {
-    while (running) {
+  async function loop(){
+    while(running){
 
       clickDefault();
       await sleep(150);
 
-      let count = filterAmount(TARGET_AMOUNT);
+      let count=filter(TARGET);
 
-      if (count === 0) {
-        setStatus("Searching...", "orange");
+      if(count===0){
+        setStatus("Searching...");
         await sleep(SPEED);
         continue;
       }
 
-      setStatus("Match Found", "blue");
+      setStatus("Match Found");
 
-      let targets = findTargets(TARGET_AMOUNT);
+      let t=targets(TARGET);
 
-      for (let t of targets) {
-        let btn = findBuy(t);
-
-        if (btn) {
+      for(let el of t){
+        let btn=buyBtn(el);
+        if(btn){
           btn.click();
           addClick();
 
-          setStatus("Clicked Buy", "yellow");
+          setStatus("Clicked Buy");
 
           await sleep(SPEED);
 
-          if (isPaymentPage()) {
-            setStatus("Payment Page", "green");
+          if(paymentPage()){
+            setStatus("Payment Page");
 
-            playPop();
-            await sleep(400);
+            mobikwik();
 
-            clickMobiKwik();
-            await sleep(400);
-
-            playChime();
-            await sleep(400);
-
-            removePaymentUI();
-
-            running = false;
+            setStatus("Done");
+            running=false;
             return;
           }
         }
@@ -219,24 +141,22 @@
 
   // ================= BUTTONS =================
 
-  document.getElementById("startBtn").onclick = () => {
-    TARGET_AMOUNT = document.getElementById("amt").value.trim();
-    SPEED = parseInt(document.getElementById("spd").value);
+  document.getElementById("start").onclick=()=>{
+    TARGET=document.getElementById("amt").value.trim();
+    SPEED=parseInt(document.getElementById("spd").value);
 
-    matches = 0;
-    clicks = 0;
-    updateMatches(0);
-    cEl.innerText = 0;
+    matches=0; clicks=0;
+    setMatches(0); cEl.innerText=0;
 
-    running = true;
-    setStatus("Running", "lime");
+    running=true;
+    setStatus("Running");
 
     loop();
   };
 
-  document.getElementById("stopBtn").onclick = () => {
-    running = false;
-    setStatus("Stopped", "red");
+  document.getElementById("stop").onclick=()=>{
+    running=false;
+    setStatus("Stopped");
   };
 
 })();
