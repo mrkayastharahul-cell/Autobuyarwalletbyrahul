@@ -5,8 +5,8 @@
   window.__AR_FINAL__ = true;
 
   let running = false;
-  let audioCtx;
   let REMOVED_ROWS = [];
+  let audioCtx;
 
   // ===== UI =====
   const box = document.createElement("div");
@@ -18,7 +18,7 @@
   `;
 
   box.innerHTML = `
-    <div id="dragHandle" style="display:flex;justify-content:space-between;margin-bottom:8px;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
       <b>AR Wallet</b>
       <span id="light" style="width:10px;height:10px;border-radius:50%;background:red;"></span>
     </div>
@@ -63,8 +63,7 @@
       running: "lime",
       searching: "orange",
       found: "blue",
-      success: "green",
-      fail: "red"
+      success: "green"
     };
     light.style.background = colors[type] || "gray";
   }
@@ -111,7 +110,6 @@
     setTimeout(() => o.stop(), 600);
   }
 
-  // ===== HELPERS =====
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   function isPaymentPage() {
@@ -120,55 +118,13 @@
 
   function clickDefault() {
     document.querySelectorAll(".txt").forEach(el => {
-      if (el.innerText.trim().toLowerCase() === "default") {
-        el.click();
-      }
+      if (el.innerText.trim().toLowerCase() === "default") el.click();
     });
   }
 
   function restoreRemoved() {
-    REMOVED_ROWS.forEach(item => {
-      item.parent.appendChild(item.element);
-    });
+    REMOVED_ROWS.forEach(item => item.parent.appendChild(item.element));
     REMOVED_ROWS = [];
-  }
-
-  // ===== HARD FILTER =====
-  function filter(val) {
-    let matches = [];
-
-    document.querySelectorAll(".ml10").forEach(el => {
-      const num = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
-      const row = el.closest(".x-row");
-
-      if (!row) return;
-
-      if (num === val) {
-        matches.push(row);
-      }
-    });
-
-    if (matches.length > 0) {
-      document.querySelectorAll(".ml10").forEach(el => {
-        const row = el.closest(".x-row");
-        if (!row) return;
-
-        if (!matches.includes(row)) {
-          REMOVED_ROWS.push({
-            parent: row.parentNode,
-            element: row
-          });
-          row.remove();
-        }
-      });
-
-      setStatus("found", "Match Locked");
-    } else {
-      setStatus("searching", "Searching");
-    }
-
-    updateMatches(matches.length);
-    return matches.length;
   }
 
   function findTargets(val) {
@@ -181,10 +137,30 @@
     return el.closest(".x-row")?.querySelector("button.van-button");
   }
 
+  function realClick(el) {
+    el.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    }));
+  }
+
+  function hardRemoveExcept(target) {
+    document.querySelectorAll(".ml10").forEach(el => {
+      const row = el.closest(".x-row");
+      if (!row) return;
+
+      if (row !== target.closest(".x-row")) {
+        REMOVED_ROWS.push({ parent: row.parentNode, element: row });
+        row.remove();
+      }
+    });
+  }
+
   function clickMobiKwik() {
     const el = document.querySelector(".banklogo");
     if (el) {
-      el.click();
+      realClick(el);
       playPop();
     }
   }
@@ -196,31 +172,34 @@
       clickDefault();
 
       let val = amountInput.value.trim();
-      let count = filter(val);
+      let targets = findTargets(val);
 
-      if (count === 0) {
+      updateMatches(targets.length);
+
+      if (!targets.length) {
+        setStatus("searching", "Searching");
         await sleep(STATE.speed);
         continue;
       }
 
-      let targets = findTargets(val);
+      setStatus("found", "Match Found");
 
       for (let t of targets) {
         let btn = findBuy(t);
 
         if (btn) {
-          btn.click();
+          realClick(btn);
           addClick();
+
+          // REMOVE AFTER CLICK
+          hardRemoveExcept(t);
 
           await sleep(STATE.speed);
 
           if (isPaymentPage()) {
+            setStatus("success", "Payment");
 
-            setStatus("success", "Payment Page");
-
-            playPop();
-
-            await sleep(800);
+            await sleep(600);
             clickMobiKwik();
 
             await sleep(1000);
