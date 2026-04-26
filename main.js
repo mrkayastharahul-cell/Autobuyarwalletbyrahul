@@ -6,6 +6,7 @@
 
   let running = false;
   let audioCtx;
+  let REMOVED_ROWS = [];
 
   // ===== UI =====
   const box = document.createElement("div");
@@ -55,10 +56,8 @@
 
   let STATE = { matches: 0, clicks: 0, speed: 500 };
 
-  // ===== STATUS =====
   function setStatus(type, txt) {
     status.innerText = txt;
-
     const colors = {
       idle: "gray",
       running: "lime",
@@ -67,7 +66,6 @@
       success: "green",
       fail: "red"
     };
-
     light.style.background = colors[type] || "gray";
   }
 
@@ -128,8 +126,16 @@
     });
   }
 
+  function restoreRemoved() {
+    REMOVED_ROWS.forEach(item => {
+      item.parent.appendChild(item.element);
+    });
+    REMOVED_ROWS = [];
+  }
+
+  // ===== HARD FILTER =====
   function filter(val) {
-    let count = 0;
+    let matches = [];
 
     document.querySelectorAll(".ml10").forEach(el => {
       const num = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
@@ -138,19 +144,31 @@
       if (!row) return;
 
       if (num === val) {
-        row.style.display = "";
-        count++;
-      } else {
-        row.style.display = "none";
+        matches.push(row);
       }
     });
 
-    updateMatches(count);
+    if (matches.length > 0) {
+      document.querySelectorAll(".ml10").forEach(el => {
+        const row = el.closest(".x-row");
+        if (!row) return;
 
-    if (count > 0) setStatus("found", "Match Found");
-    else setStatus("searching", "Searching");
+        if (!matches.includes(row)) {
+          REMOVED_ROWS.push({
+            parent: row.parentNode,
+            element: row
+          });
+          row.remove();
+        }
+      });
 
-    return count;
+      setStatus("found", "Match Locked");
+    } else {
+      setStatus("searching", "Searching");
+    }
+
+    updateMatches(matches.length);
+    return matches.length;
   }
 
   function findTargets(val) {
@@ -171,25 +189,20 @@
     }
   }
 
-  // ===== CORE LOOP =====
+  // ===== LOOP =====
   async function loop() {
     while (running) {
 
-      // Step 1: Default
       clickDefault();
 
-      // Step 2: Filter
       let val = amountInput.value.trim();
       let count = filter(val);
 
-      // Step 3: No match → repeat
       if (count === 0) {
-        setStatus("fail", "No Match");
         await sleep(STATE.speed);
         continue;
       }
 
-      // Step 4: Click Buy
       let targets = findTargets(val);
 
       for (let t of targets) {
@@ -201,25 +214,19 @@
 
           await sleep(STATE.speed);
 
-          // Step 5: Payment page?
           if (isPaymentPage()) {
 
             setStatus("success", "Payment Page");
 
-            // Step 6: POP
             playPop();
 
-            // Step 7: Click Mobikwik
             await sleep(800);
             clickMobiKwik();
 
-            // Step 8: Chime
             await sleep(1000);
             playChime();
 
-            // Step 9: Remove UI
             box.remove();
-
             running = false;
             return;
           }
@@ -247,6 +254,7 @@
 
   document.getElementById("stop").onclick = () => {
     running = false;
+    restoreRemoved();
     setStatus("idle", "Stopped");
   };
 
