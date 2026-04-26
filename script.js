@@ -24,7 +24,7 @@
 
   box.innerHTML = `
     <div id="dragHandle" style="display:flex;justify-content:space-between;margin-bottom:8px;">
-      <span style="font-weight:600;font-size:13px;">AR Wallet</span>
+      <span style="font-weight:600;">AR Wallet</span>
       <span id="light" style="width:10px;height:10px;border-radius:50%;background:red;"></span>
     </div>
 
@@ -47,15 +47,15 @@
 
   // ===== DRAG =====
   let isDragging = false, offsetX, offsetY;
-  const dragHandle = document.getElementById("dragHandle");
 
-  dragHandle.onmousedown = (e) => {
+  document.getElementById("dragHandle").onmousedown = (e) => {
     isDragging = true;
     const rect = box.getBoundingClientRect();
     box.style.left = rect.left + "px";
     box.style.top = rect.top + "px";
     box.style.right = "auto";
     box.style.bottom = "auto";
+
     offsetX = e.clientX - box.offsetLeft;
     offsetY = e.clientY - box.offsetTop;
   };
@@ -82,7 +82,8 @@
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     o.frequency.value = 800;
-    o.connect(g); g.connect(audioCtx.destination);
+    o.connect(g);
+    g.connect(audioCtx.destination);
     o.start();
     g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.6);
     setTimeout(() => o.stop(), 600);
@@ -93,18 +94,19 @@
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     o.frequency.value = 1200;
-    o.connect(g); g.connect(audioCtx.destination);
+    o.connect(g);
+    g.connect(audioCtx.destination);
     o.start();
     g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
     setTimeout(() => o.stop(), 300);
   }
 
-  // ===== FILTER SYSTEM =====
+  // ===== FILTER =====
   function filterResults(val) {
     let found = false;
 
     document.querySelectorAll(".ml10").forEach(el => {
-      let cleaned = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
+      const cleaned = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
       const row = el.closest("div");
 
       if (!row) return;
@@ -127,28 +129,36 @@
     });
   }
 
-  // ===== HELPERS =====
-  function clickDefault() {
-    [...document.querySelectorAll("*")].forEach(el => {
-      if (el.innerText?.trim().toLowerCase() === "default") el.click();
-    });
-  }
-
+  // ===== FIND TARGET =====
   function findTargets(val) {
     return [...document.querySelectorAll(".ml10")].filter(el => {
-      let cleaned = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
+      const cleaned = el.innerText.replace(/[^0-9]/g, "").replace(/^0+/, "");
       return cleaned === val;
     });
   }
 
+  // ===== FIND BUY =====
   function findBuy(el) {
     let parent = el;
+
     while (parent && parent !== document.body) {
-      let btn = parent.querySelector(".van-button__text");
-      if (btn && btn.innerText.toLowerCase().includes("buy")) return btn;
+      let elements = parent.querySelectorAll("button, div, span");
+
+      for (let e of elements) {
+        let text = e.innerText?.toLowerCase().trim();
+        if (text === "buy" || text?.includes("buy")) {
+          return e;
+        }
+      }
+
       parent = parent.parentElement;
     }
+
     return null;
+  }
+
+  function click(el) {
+    el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   }
 
   function isPaymentPage() {
@@ -156,17 +166,16 @@
            document.body.innerText.includes("Select Payment Method");
   }
 
-  function clickMobiKwikExact() {
+  function clickMobiKwik() {
     const el = document.querySelector(".bgmobikwik");
     if (el) {
-      el.click();
+      click(el);
       playPop();
       return true;
     }
     return false;
   }
 
-  // ===== MULTI CLICK =====
   async function clickTargets(targets) {
     let count = 0;
 
@@ -174,8 +183,9 @@
       if (count >= 3) break;
 
       let btn = findBuy(t);
+
       if (btn) {
-        btn.click();
+        click(btn);
         count++;
 
         await sleep(500);
@@ -183,7 +193,7 @@
         if (isPaymentPage()) {
           setTimeout(() => {
             playChime();
-            clickMobiKwikExact();
+            clickMobiKwik();
             status.innerText = "Done";
           }, 1200);
 
@@ -193,17 +203,17 @@
         }
       }
     }
+
     return false;
   }
 
-  // ===== LOOP =====
   async function loop() {
     while (running) {
 
       if (isPaymentPage()) {
         setTimeout(() => {
           playChime();
-          clickMobiKwikExact();
+          clickMobiKwik();
         }, 1200);
 
         running = false;
@@ -227,7 +237,7 @@
 
       let targets = findTargets(val);
 
-      if (targets.length > 0) {
+      if (targets.length) {
         let done = await clickTargets(targets);
         if (done) return;
       }
@@ -236,11 +246,18 @@
     }
   }
 
+  function clickDefault() {
+    document.querySelectorAll("*").forEach(el => {
+      if (el.innerText?.toLowerCase().trim() === "default") {
+        click(el);
+      }
+    });
+  }
+
   function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
   }
 
-  // ===== BUTTONS =====
   document.getElementById("start").onclick = () => {
     const val = amountInput.value.trim();
     if (!val) return;
@@ -258,7 +275,7 @@
     running = false;
     status.innerText = "Stopped";
     light.style.background = "red";
-    resetResults(); // restore UI
+    resetResults();
   };
 
 })();
